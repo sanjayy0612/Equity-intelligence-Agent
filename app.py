@@ -4,7 +4,7 @@ from states import build_graph
 
 # --- 1. CONFIGURATION ---
 st.set_page_config(
-    page_title="OpenFinAgent", 
+    page_title="EQ-Agent", 
     page_icon="📈",
     layout="centered"
 )
@@ -25,8 +25,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("📈 OpenFinAgent")
-st.markdown("### The AI Financial Analyst powered by OpenBB & Llama 3.1")
+st.title("📈 EQ-Agent")
+st.markdown("### The AI Financial Analyst ")
 st.caption("Capabilities: Real-time Stock Data, Fundamental Analysis, Sector Comparisons")
 
 # --- 2. SESSION STATE SETUP ---
