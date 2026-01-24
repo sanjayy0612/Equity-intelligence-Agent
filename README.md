@@ -33,12 +33,10 @@
 ## 📸 Screenshots
 
 ### Agent in Action
-![EQ-Agent Analysis](path/to/screenshot2.png)
+![EQ-Agent Analysis](assets/streamlit_ui.jpg)
 *Real-time fundamental analysis with industry-contextualized insights*
 
-### Repository Structure
-![Repository Overview](path/to/screenshot1.png)
-*Clean, modular Python architecture*
+
 
 ## 🚀 Quick Start
 
