@@ -330,6 +330,15 @@ def get_capital_allocation(symbol: str):
         
     except Exception as e:
         return f"Error analyzing capital allocation: {str(e)}"
+    
+@tool
+def get_institutional_ownership(symbol: str):
+    """
+    Shows major institutional holders (Vanguard, BlackRock, etc.)
+    and recent changes in their positions.
+    get the data top companies holding the stock
+    so that we can analyze if institutions are buying or selling
+    """
 
 # --- EXPORT LIST ---
 tools_list = [
