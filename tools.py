@@ -339,6 +339,11 @@ def get_institutional_ownership(symbol: str):
     get the data top companies holding the stock
     so that we can analyze if institutions are buying or selling
     """
+@tool
+def get_analyst_ratings(symbol: str):
+    """
+    Fetches analyst recommendations (Buy/Hold/Sell), price targets, and consensus ratings.
+    """
 
 # --- EXPORT LIST ---
 tools_list = [
