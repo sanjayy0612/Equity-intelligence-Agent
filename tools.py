@@ -343,6 +343,13 @@ def get_institutional_ownership(symbol: str):
 def get_analyst_ratings(symbol: str):
     """
     Fetches analyst recommendations (Buy/Hold/Sell), price targets, and consensus ratings.
+
+    """
+@tool
+def get_cash_flow(symbol: str):
+    """
+    Analyzes operating, investing, and financing cash flows.
+    Critical for understanding company's liquidity and capital allocation.
     """
 
 # --- EXPORT LIST ---
