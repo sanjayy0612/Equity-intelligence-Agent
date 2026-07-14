@@ -1,89 +1,7 @@
 # tool.py
 from langchain_core.tools import tool
-from openbb import obb
-
-# --- INDUSTRY BENCHMARKS ---
-INDUSTRY_BENCHMARKS = {
-    "Automotive": {
-        "profit_margin": {"low": 3, "avg": 6, "high": 10},
-        "roe": {"low": 5, "avg": 12, "high": 20},
-        "debt_to_equity": {"low": 10, "avg": 50, "high": 100},
-        "pe_ratio": {"low": 8, "avg": 15, "high": 25},
-        "current_ratio": {"low": 0.8, "avg": 1.2, "high": 1.8}
-    },
-    "Technology": {
-        "profit_margin": {"low": 10, "avg": 20, "high": 35},
-        "roe": {"low": 10, "avg": 18, "high": 30},
-        "debt_to_equity": {"low": 5, "avg": 25, "high": 60},
-        "pe_ratio": {"low": 15, "avg": 30, "high": 60},
-        "current_ratio": {"low": 1.0, "avg": 1.8, "high": 3.0}
-    },
-    "Consumer Cyclical": {
-        "profit_margin": {"low": 2, "avg": 5, "high": 10},
-        "roe": {"low": 8, "avg": 15, "high": 25},
-        "debt_to_equity": {"low": 20, "avg": 60, "high": 120},
-        "pe_ratio": {"low": 10, "avg": 20, "high": 35},
-        "current_ratio": {"low": 0.9, "avg": 1.3, "high": 2.0}
-    },
-    "Healthcare": {
-        "profit_margin": {"low": 8, "avg": 15, "high": 25},
-        "roe": {"low": 10, "avg": 18, "high": 28},
-        "debt_to_equity": {"low": 10, "avg": 40, "high": 80},
-        "pe_ratio": {"low": 12, "avg": 22, "high": 40},
-        "current_ratio": {"low": 1.2, "avg": 2.0, "high": 3.5}
-    },
-    "Financial Services": {
-        "profit_margin": {"low": 15, "avg": 25, "high": 40},
-        "roe": {"low": 8, "avg": 12, "high": 18},
-        "debt_to_equity": {"low": 100, "avg": 300, "high": 800},
-        "pe_ratio": {"low": 8, "avg": 15, "high": 25},
-        "current_ratio": {"low": 0.5, "avg": 1.0, "high": 1.5}
-    },
-    "Energy": {
-        "profit_margin": {"low": 3, "avg": 8, "high": 15},
-        "roe": {"low": 5, "avg": 12, "high": 20},
-        "debt_to_equity": {"low": 20, "avg": 60, "high": 120},
-        "pe_ratio": {"low": 8, "avg": 15, "high": 30},
-        "current_ratio": {"low": 0.8, "avg": 1.2, "high": 1.8}
-    }
-}
-
-def get_metric_assessment(value, sector, metric_name):
-    """Helper function to assess a metric against industry benchmarks"""
-    if value == "N/A" or value is None:
-        return "N/A"
-    
-    # Map common metric names to our benchmark keys
-    metric_map = {
-        "Profit Margin": "profit_margin",
-        "Return on Equity (ROE)": "roe",
-        "Debt to Equity": "debt_to_equity",
-        "P/E Ratio": "pe_ratio",
-        "Current Ratio": "current_ratio"
-    }
-    
-    benchmark_key = metric_map.get(metric_name)
-    if not benchmark_key or sector not in INDUSTRY_BENCHMARKS:
-        return "No benchmark available"
-    
-    benchmarks = INDUSTRY_BENCHMARKS[sector][benchmark_key]
-    
-    # Determine if this is a percentage metric or ratio
-    is_percentage = metric_name in ["Profit Margin", "Return on Equity (ROE)"]
-    unit = "%" if is_percentage else ""
-    
-    try:
-        val = float(value)
-        if val < benchmarks["low"]:
-            return f"Below Industry Range ({benchmarks['low']}-{benchmarks['high']}{unit})"
-        elif val < benchmarks["avg"]:
-            return f"Near Industry Low (Avg: {benchmarks['avg']}{unit})"
-        elif val <= benchmarks["high"]:
-            return f"Within Industry Range (Avg: {benchmarks['avg']}{unit})"
-        else:
-            return f"Above Industry Average (Avg: {benchmarks['avg']}{unit})"
-    except (ValueError, TypeError):
-        return "Unable to compare"
+import market_data
+from metric import Metric
 
 # --- TOOL 1: Name to Ticker Converter ---
 @tool
@@ -132,9 +50,9 @@ def get_stock_price(symbol: str):
     Fetches the historical stock price for a given ticker symbol (e.g., 'AAPL', 'NVDA').
     Returns the last 5 days of data.
     """
-    print(f"\nDEBUG: 🛠️  Fetching price for {symbol}...") 
+    print(f"\nDEBUG: 🛠️  Fetching price for {symbol}...")
     try:
-        df = obb.equity.price.historical(symbol, provider="yfinance").to_dataframe()
+        df = market_data.price_history(symbol)
         return df.tail(5).to_string()
     except Exception as e:
         return f"Error fetching data: {str(e)}"
@@ -148,8 +66,10 @@ def get_company_profile(symbol: str):
     """
     print(f"\nDEBUG: 🛠️  Fetching profile for {symbol}...")
     try:
-        data = obb.equity.profile(symbol, provider="yfinance").to_dict()
-        return str(data)[:1000] 
+        data = market_data.profile(symbol)
+        if data is None:
+            return f"Error: No profile found for {symbol}"
+        return str(data)[:1000]
     except Exception as e:
         return f"Error fetching profile: {str(e)}"
 
@@ -164,36 +84,21 @@ def fundamental_analysis(symbol: str):
     print(f"DEBUG: 🔍 Gathering fundamental intel for {symbol}...")
     try:
         # 1. Fetch Profile
-        profile_res = obb.equity.profile(symbol, provider="yfinance")
-        if not profile_res.results:
+        cmp_profile = market_data.profile(symbol)
+        if cmp_profile is None:
             return f"Error: No profile found for {symbol}"
-        cmp_profile = profile_res.results[0].model_dump()
 
         # 2. Fetch Metrics
-        metrics_res = obb.equity.fundamental.metrics(symbol, provider="yfinance")
-        if not metrics_res.results:
+        company_metrics = market_data.metrics(symbol)
+        if company_metrics is None:
             return f"Error: No financial metrics found for {symbol}"
-        company_metrics = metrics_res.results[0].model_dump()
 
         # 3. Get sector for benchmarking
         sector = cmp_profile.get("sector", "Unknown")
-        
-        # 4. Extract and format metrics
-        profit_margin = company_metrics.get("profit_margin")
-        if profit_margin and isinstance(profit_margin, (int, float)):
-            profit_margin_pct = round(profit_margin * 100, 2)
-        else:
-            profit_margin_pct = "N/A"
-            
-        roe = company_metrics.get("return_on_equity")
-        if roe and isinstance(roe, (int, float)):
-            roe_pct = round(roe * 100, 2)
-        else:
-            roe_pct = "N/A"
-            
-        debt_to_equity = company_metrics.get("debt_to_equity", "N/A")
-        pe_ratio = company_metrics.get("pe_ratio", "N/A")
-        current_ratio = company_metrics.get("current_ratio", "N/A")
+
+        # 4. Each Metric normalizes, benchmarks, and renders itself.
+        def metric(name, key):
+            return Metric(name, company_metrics.get(key, "N/A"), sector).render()
 
         # 5. Construct the Enhanced Dictionary with Context
         data_dict = {
@@ -202,13 +107,13 @@ def fundamental_analysis(symbol: str):
             "Industry": cmp_profile.get("industry_category", "N/A"),
             "Country": cmp_profile.get("hq_country", "N/A"),
             "Description": cmp_profile.get("long_description", "N/A")[:500] + "...",
-            
+
             # Enhanced metrics with industry context
-            "Profit Margin": f"{profit_margin_pct}% - {get_metric_assessment(profit_margin_pct, sector, 'Profit Margin')}",
-            "Return on Equity (ROE)": f"{roe_pct}% - {get_metric_assessment(roe_pct, sector, 'Return on Equity (ROE)')}",
-            "Debt to Equity": f"{debt_to_equity} - {get_metric_assessment(debt_to_equity, sector, 'Debt to Equity')}",
-            "P/E Ratio": f"{pe_ratio} - {get_metric_assessment(pe_ratio, sector, 'P/E Ratio')}",
-            "Current Ratio": f"{current_ratio} - {get_metric_assessment(current_ratio, sector, 'Current Ratio')}",
+            "Profit Margin": metric("Profit Margin", "profit_margin"),
+            "Return on Equity (ROE)": metric("Return on Equity (ROE)", "return_on_equity"),
+            "Debt to Equity": metric("Debt to Equity", "debt_to_equity"),
+            "P/E Ratio": metric("P/E Ratio", "pe_ratio"),
+            "Current Ratio": metric("Current Ratio", "current_ratio"),
             "EPS": company_metrics.get("eps", "N/A"),
             "Price to Book": company_metrics.get("price_to_book", "N/A"),
             
@@ -238,13 +143,10 @@ def compare_stocks(symbols: str):
         for symbol in symbol_list:
             try:
                 # Fetch metrics
-                metrics_res = obb.equity.fundamental.metrics(symbol, provider="yfinance")
-                profile_res = obb.equity.profile(symbol, provider="yfinance")
-                
-                if metrics_res.results and profile_res.results:
-                    metrics = metrics_res.results[0].model_dump()
-                    profile = profile_res.results[0].model_dump()
-                    
+                metrics = market_data.metrics(symbol)
+                profile = market_data.profile(symbol)
+
+                if metrics and profile:
                     # Safe extraction of ROE for sorting
                     raw_roe = metrics.get("return_on_equity")
                     roe_val = raw_roe if isinstance(raw_roe, (int, float)) else 0
@@ -284,14 +186,11 @@ def get_capital_allocation(symbol: str):
     print(f"DEBUG: 💰 Analyzing capital allocation for {symbol}...")
     try:
         # Fetch key statistics that show buyback activity
-        metrics_res = obb.equity.fundamental.metrics(symbol, provider="yfinance")
-        profile_res = obb.equity.profile(symbol, provider="yfinance")
-        
-        if not metrics_res.results or not profile_res.results:
+        metrics = market_data.metrics(symbol)
+        profile = market_data.profile(symbol)
+
+        if metrics is None or profile is None:
             return f"Error: Unable to fetch capital allocation data for {symbol}"
-        
-        metrics = metrics_res.results[0].model_dump()
-        profile = profile_res.results[0].model_dump()
         
         # Calculate key indicators
         roe = metrics.get("return_on_equity")
@@ -331,91 +230,19 @@ def get_capital_allocation(symbol: str):
     except Exception as e:
         return f"Error analyzing capital allocation: {str(e)}"
     
-@tool
-def get_institutional_ownership(symbol: str):
-    """
-    Shows major institutional holders (Vanguard, BlackRock, etc.)
-    and recent changes in their positions.
-    get the data top companies holding the stock
-    so that we can analyze if institutions are buying or selling
-    """
-@tool
-def get_analyst_ratings(symbol: str):
-    """
-    Fetches analyst recommendations (Buy/Hold/Sell), price targets, and consensus ratings.
-
-    """
-@tool
-def get_cash_flow(symbol: str):
-    """
-    Analyzes operating, investing, and financing cash flows.
-    Critical for understanding company's liquidity and capital allocation.
-    """
+# --- PLANNED TOOLS (not yet implemented; add to tools_list once built) ---
+# - get_institutional_ownership(symbol): major holders (Vanguard, BlackRock) and
+#   position changes, to gauge whether institutions are buying or selling.
+# - get_analyst_ratings(symbol): Buy/Hold/Sell recommendations, price targets, consensus.
+# - get_cash_flow(symbol): operating/investing/financing cash flows for liquidity
+#   and capital-allocation analysis.
 
 # --- EXPORT LIST ---
 tools_list = [
-    stock_name, 
-    get_stock_price, 
-    get_company_profile, 
+    stock_name,
+    get_stock_price,
+    get_company_profile,
     fundamental_analysis,
     compare_stocks,
     get_capital_allocation
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
