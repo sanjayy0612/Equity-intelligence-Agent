@@ -3,9 +3,12 @@ from langgraph.prebuilt import ToolNode
 from context_schema import AgentState
 from ai_engine import llm_engine
 from tools import tools_list
+from persona import system_message
 
 def agent_node(state: AgentState):
-    messages = state["messages"]
+    # Seed the analyst persona for the LLM call without storing it in the
+    # accumulating message history, so every entrypoint gets the same agent.
+    messages = [system_message()] + state["messages"]
     response = llm_engine.invoke(messages)
     return {"messages": [response]}
 
